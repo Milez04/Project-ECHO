@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
                              QLabel, QFileDialog, QWidget, QTabWidget, QScrollArea, QGridLayout,
                              QLineEdit, QMessageBox, QRadioButton, QComboBox)
 from PyQt5.QtGui import QImage, QPixmap, QIcon, QFont, QFontDatabase
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QSize, QBuffer
 from ultralytics import YOLO
 import pyttsx3
 import threading
@@ -19,6 +19,7 @@ from datetime import datetime
 import sqlite3
 import easyocr
 import queue
+from traffic_sign_chatbot import TrafficSignChatbot
 
 def process_frame(frame):
     lower_range = np.array([58, 97, 222])
@@ -68,112 +69,209 @@ class VideoApp(QMainWindow):
 
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #1E1E2E;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1A1A2E, stop:1 #16213E);
                 font-family: 'Inter', sans-serif;
+                color: #E5E7EB;
             }
+
             QPushButton {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #6366F1, stop:1 #818CF8);
-                color: white;
-                border-radius: 12px;
-                padding: 8px 12px;
-                font-size: 13px;
-                font-weight: bold;
-                border: none;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #5B86E5, stop:0.5 #36D1DC, stop:1 #5B86E5);
+                color: #FFFFFF;
+                border-radius: 20px;
+                padding: 14px 20px;
+                font-size: 15px;
+                font-weight: 600;
+                border: 2px solid rgba(91, 134, 229, 0.5);
                 text-align: center;
+                transition: all 0.4s ease;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
             }
+
             QPushButton:hover {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #818CF8, stop:1 #A5B4FC);
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #36D1DC, stop:0.5 #5B86E5, stop:1 #36D1DC);
+                transform: scale(1.02);
+                box-shadow: 0 6px 14px rgba(54, 209, 220, 0.3);
+                border-color: #36D1DC;
             }
+
             QPushButton:pressed {
-                background: #4F46E5;
+                background: #4A90E2;
+                box-shadow: inset 0 3px 6px rgba(0,0,0,0.3);
+                transform: scale(0.98);
             }
+
             QLineEdit {
-                background-color: #2A2A3E;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #252535, stop:1 #2A2A3E);
                 color: #E5E7EB;
-                border: 1px solid #3F3F5A;
-                border-radius: 8px;
-                padding: 8px;
-                font-size: 13px;
+                border: 1px solid #37374A;
+                border-radius: 12px;
+                padding: 12px;
+                font-size: 14px;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
+
             QLineEdit:focus {
-                border: 1px solid #6366F1;
+                border: 2px solid #5B86E5;
+                background: #2A2A3E;
+                box-shadow: 0 4px 8px rgba(91, 134, 229, 0.2);
             }
+
             QComboBox {
-                background-color: #2A2A3E;
+                background: #252535;
                 color: #E5E7EB;
-                border: 1px solid #3F3F5A;
-                border-radius: 8px;
-                padding: 8px;
-                font-size: 13px;
+                border: 1px solid #37374A;
+                border-radius: 12px;
+                padding: 12px;
+                font-size: 14px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
+
+            QComboBox:hover {
+                border-color: #5B86E5;
+            }
+
             QComboBox::drop-down {
                 border: none;
+                width: 20px;
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                padding-right: 10px;
             }
+
             QComboBox QAbstractItemView {
-                background-color: #2A2A3E;
+                background: #252535;
                 color: #E5E7EB;
-                selection-background-color: #6366F1;
-            }
-            QLabel#videoLabel {
-                background-color: #2A2A3E;
-                border: 3px solid #3F3F5A;
-                border-radius: 12px;
-            }
-            QLabel#statusLabel {
-                background-color: #2A2A3E;
-                color: #E5E7EB;
-                font-size: 14px;
-                padding: 10px;
+                border: 1px solid #37374A;
                 border-radius: 8px;
+                selection-background-color: #5B86E5;
+                selection-color: #FFFFFF;
+                padding: 5px;
             }
-            QLabel#trafficLightIndicator {
-                background-color: rgba(63, 63, 90, 0.9);
-                color: #E5E7EB;
+
+            QLabel#videoLabel {
+                background: #2A2A3E;
+                border: 3px solid #37374A;
+                border-radius: 18px;
+                padding: 8px;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            }
+
+            QLabel#statusLabel {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #252535, stop:1 #2A2A3E);
+                color: #D1D5DB;
                 font-size: 14px;
-                padding: 10px;
+                padding: 14px;
                 border-radius: 12px;
-                border: 1px solid #6366F1;
+                border: 1px solid #37374A;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             }
+
+            QLabel#trafficLightIndicator {
+                background: rgba(37, 37, 53, 0.95);
+                color: #E5E7EB;
+                font-size: 15px;
+                font-weight: 500;
+                padding: 12px 18px;
+                border-radius: 15px;
+                border: 2px solid #5B86E5;
+                box-shadow: 0 4px 10px rgba(91, 134, 229, 0.2);
+                transition: all 0.3s ease;
+            }
+
             QTabWidget::pane {
-                border: 2px solid #3F3F5A;
-                border-radius: 12px;
-                background-color: #2A2A3E;
+                border: 2px solid #37374A;
+                border-radius: 18px;
+                background: #252535;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             }
+
             QTabWidget::tab-bar {
                 alignment: center;
             }
+
             QTabBar::tab {
-                background-color: #3F3F5A;
-                color: #E5E7EB;
-                padding: 12px 24px;
-                border-radius: 8px;
-                margin: 4px;
-                font-size: 16px;
-            }
-            QTabBar::tab:selected {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #6366F1, stop:1 #818CF8);
-                color: white;
-            }
-            QWidget#sidebar {
-                background-color: #2A2A3E;
-                border-right: 2px solid #3F3F5A;
-            }
-            QWidget#violationCard {
-                background-color: #3F3F5A;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #37374A, stop:1 #4B4B5E);
+                color: #D1D5DB;
+                padding: 14px 28px;
                 border-radius: 12px;
-                padding: 10px;
-                margin: 5px;
+                margin: 6px;
+                font-size: 16px;
+                font-weight: 600;
+                transition: all 0.4s ease;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             }
+
+            QTabBar::tab:selected {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #5B86E5, stop:0.5 #36D1DC, stop:1 #5B86E5);
+                color: #FFFFFF;
+                box-shadow: 0 4px 12px rgba(54, 209, 220, 0.3);
+            }
+
+            QTabBar::tab:hover:!selected {
+                background: #4B5563;
+                color: #E5E7EB;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            }
+
+            QWidget#sidebar {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #252535, stop:1 #2A2A3E);
+                border-right: 2px solid #37374A;
+                box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+            }
+
+            QWidget#violationCard {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #37374A, stop:1 #4B4B5E);
+                border-radius: 18px;
+                padding: 15px;
+                margin: 10px;
+                transition: all 0.3s ease;
+                box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+            }
+
             QWidget#violationCard:hover {
-                background-color: #4B5563;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4B4B5E, stop:1 #5B5B73);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 14px rgba(0,0,0,0.2);
             }
+
             QLabel#violationLabel {
                 color: #E5E7EB;
                 font-size: 14px;
+                font-weight: 500;
             }
+
             QScrollArea {
-                background-color: #2A2A3E;
+                background: #252535;
                 border: none;
+                border-radius: 15px;
+                box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+            }
+
+            QRadioButton {
+                color: #E5E7EB;
+                font-size: 14px;
+                padding: 8px;
+                spacing: 8px;
+            }
+
+            QRadioButton::indicator {
+                width: 20px;
+                height: 20px;
+                border-radius: 10px;
+                border: 2px solid #5B86E5;
+                background-color: #252535;
+                transition: all 0.3s ease;
+            }
+
+            QRadioButton::indicator:checked {
+                background-color: #5B86E5;
+                border: 2px solid #36D1DC;
+                box-shadow: 0 0 6px rgba(91, 134, 229, 0.6);
+            }
+
+            QRadioButton:hover::indicator {
+                border-color: #36D1DC;
             }
         """)
 
@@ -185,6 +283,10 @@ class VideoApp(QMainWindow):
         self.model_signs = YOLO("best.pt").to(self.device)
         self.model_vehicles = YOLO("yolov8s.pt").to(self.device)
         self.model_crosswalk = YOLO("yaya.pt").to(self.device)
+
+        self.speed_zone = None
+        self.real_distance_meters = 100
+        
 
         self.engine = pyttsx3.init()
         self.engine.setProperty('rate', 150)
@@ -219,7 +321,6 @@ class VideoApp(QMainWindow):
         self.violated_ids = []
         self.lane_violated_ids = []
         self.pedestrian_violated_ids = []
-        self.red_light_violated_ids = []
         self.pedestrian_stop_counters = {}
         self.previous_lanes = {}
         self.lane_change_counters = {}
@@ -235,9 +336,6 @@ class VideoApp(QMainWindow):
         self.pedestrian_area = None
         self.pedestrian_check_interval = 15
         self.was_inside_crosswalk = {}
-
-        # Координаты линии для нарушения красного света (по умолчанию)
-        self.traffic_line = [(300, 400), (720, 400)]  # Координаты линии: [(x1, y1), (x2, y2)]
 
         self.init_db()
         self.ocr_reader = easyocr.Reader(['en'])
@@ -269,7 +367,7 @@ class VideoApp(QMainWindow):
         self.btn_video.setIcon(QIcon("icons/video.svg"))
         self.btn_traffic_light = QPushButton("Управление светофором")
         self.btn_traffic_light.setIcon(QIcon("icons/traffic-light.svg"))
-        self.btn_stop = QPushButton("Остановить")
+        self.btn_stop = QPushButton("Остановка")
         self.btn_stop.setIcon(QIcon("icons/stop.svg"))
         self.btn_exit = QPushButton("Выход")
         self.btn_exit.setIcon(QIcon("icons/exit.svg"))
@@ -280,8 +378,8 @@ class VideoApp(QMainWindow):
 
         speed_limit_label = QLabel("Ограничение скорости (км/ч):")
         speed_limit_label.setStyleSheet("color: #E5E7EB; font-size: 14px;")
-        self.use_google_speed_limit = QRadioButton("Использовать лимит Google Maps")
-        self.use_manual_speed_limit = QRadioButton("Ввести лимит вручную")
+        self.use_google_speed_limit = QRadioButton("Использовать лимит скорости Google Maps")
+        self.use_manual_speed_limit = QRadioButton("Ввести ручной лимит скорости")
         self.use_google_speed_limit.setChecked(True)
         self.speed_limit_input = QLineEdit()
         self.speed_limit_input.setPlaceholderText("Введите ограничение скорости (например, 50)")
@@ -316,11 +414,37 @@ class VideoApp(QMainWindow):
         self.violations_tab = QWidget()
         self.report_tab = QWidget()
         self.camera_selection_tab = QWidget()
+        self.map_tab = QWidget()  # New Map tab
 
-        self.tab_widget.addTab(self.video_tab, "Видеопоток")
-        self.tab_widget.addTab(self.violations_tab, "Нарушения красного света")
-        self.tab_widget.addTab(self.report_tab, "Отчет о нарушениях")
-        self.tab_widget.addTab(self.camera_selection_tab, "Выбор камеры")
+        self.tab_widget.addTab(self.video_tab, "    Поток видео     ")
+        self.tab_widget.addTab(self.violations_tab, "         Нарушения красного света         ")
+        self.tab_widget.addTab(self.camera_selection_tab, "     Выбор камеры     ")
+        self.tab_widget.addTab(self.map_tab, "  Карта  ")  # Adding Map tab
+
+        self.btn_chat = QPushButton()
+        self.btn_chat.setIcon(QIcon("icons/chat.png"))
+        self.btn_chat.setIconSize(QSize(32, 32))
+        self.btn_chat.setFixedSize(40, 40)
+        self.btn_chat.clicked.connect(self.open_chat_window)
+
+        tab_bar = self.tab_widget.tabBar()
+        tab_bar.setStyleSheet(tab_bar.styleSheet() + """
+            QPushButton {
+                background: none;
+                border: none;
+                padding: 0;
+                margin: 0 5px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #36D1DC, stop:0.5 #5B86E5, stop:1 #36D1DC);
+                border-radius: 5px;
+            }
+        """)
+        tab_bar_layout = QHBoxLayout()
+        tab_bar_widget = QWidget()
+        tab_bar_widget.setLayout(tab_bar_layout)
+        tab_bar_layout.addWidget(self.btn_chat)
+        self.tab_widget.setCornerWidget(tab_bar_widget, Qt.TopRightCorner)
 
         video_layout = QVBoxLayout()
         self.video_container = QWidget()
@@ -339,7 +463,6 @@ class VideoApp(QMainWindow):
         video_container_layout.addWidget(self.image_label)
         self.video_container.setLayout(video_container_layout)
         video_layout.addWidget(self.video_container, stretch=1)
-
         self.video_tab.setLayout(video_layout)
 
         violations_layout = QVBoxLayout()
@@ -354,13 +477,13 @@ class VideoApp(QMainWindow):
         self.violations_tab.setLayout(violations_layout)
 
         report_layout = QVBoxLayout()
-        self.report_label = QLabel("Отчет о нарушениях будет показан здесь.")
+        self.report_label = QLabel("Отчет о нарушениях будет отображаться здесь.")
         report_layout.addWidget(self.report_label)
         self.report_tab.setLayout(report_layout)
 
         camera_selection_layout = QVBoxLayout()
         camera_selection_layout_inner = QHBoxLayout()
-        camera_label = QLabel("Выберите камеру:")
+        camera_label = QLabel("Выбор камеры:")
         camera_label.setStyleSheet("color: #E5E7EB; font-size: 14px;")
         self.camera_combo = QComboBox()
         self.camera_combo.addItems(["Камера 1", "Камера 2"])
@@ -372,17 +495,43 @@ class VideoApp(QMainWindow):
         self.camera_video_label.setObjectName("videoLabel")
         self.camera_video_label.setAlignment(Qt.AlignCenter)
         camera_selection_layout.addWidget(self.camera_video_label)
-
         self.camera_selection_tab.setLayout(camera_selection_layout)
 
+        # Map tab setup
+        map_layout = QVBoxLayout()
+        self.map_container = QWidget()
+        self.map_container.setStyleSheet("background-color: #2A2A3E; border-radius: 12px; position: relative;")
+        map_image_label = QLabel()
+        map_pixmap = QPixmap("map.png")
+        map_image_label.setPixmap(map_pixmap.scaled(self.map_container.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        map_container_layout = QVBoxLayout()
+        map_container_layout.addWidget(map_image_label)
+        self.map_container.setLayout(map_container_layout)
+        map_layout.addWidget(self.map_container, stretch=1)
+        self.map_tab.setLayout(map_layout)
+
+        # Add buttons on the map
+        self.btn_camera1 = QPushButton()
+        self.btn_camera1.setIcon(QIcon("traffic-light.png"))
+        self.btn_camera1.setIconSize(QSize(32, 32))
+        self.btn_camera1.setFixedSize(40, 40)
+        self.btn_camera1.move(90, 300)  # Adjust this position based on your map
+        self.btn_camera1.setParent(self.map_container)
+        self.btn_camera1.clicked.connect(lambda: self.select_camera("Камера 1"))
+
+        self.btn_camera2 = QPushButton()
+        self.btn_camera2.setIcon(QIcon("traffic-light.png"))
+        self.btn_camera2.setIconSize(QSize(32, 32))
+        self.btn_camera2.setFixedSize(40, 40)
+        self.btn_camera2.move(510, 425)  # Adjust this position based on your map
+        self.btn_camera2.setParent(self.map_container)
+        self.btn_camera2.clicked.connect(lambda: self.select_camera("Камера 2"))
+
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
-
         self.camera_combo.currentTextChanged.connect(self.load_camera_video)
-
         content_layout.addWidget(self.tab_widget)
         content_widget.setLayout(content_layout)
         main_layout.addWidget(content_widget, stretch=1)
-
         central_widget.setLayout(main_layout)
 
         self.timer = QTimer()
@@ -411,19 +560,40 @@ class VideoApp(QMainWindow):
         self.btn_exit.clicked.connect(self.close)
         self.btn_set_speed_limit.clicked.connect(self.set_speed_limit)
 
-        # Координаты пешеходного перехода для video1
         self.video1_pedestrian_area = [
-            (350, 290),  # Левый нижний
-            (190, 365),  # Левый верхний
-            (950, 490),  # Правый верхний
-            (970, 370)   # Правый нижний
+            (350, 290), (190, 365), (950, 490), (970, 370)
         ]
+        self.video1_traffic_line = [(110, 430), (570, 520)]
+
+    def select_camera(self, camera_name):
+        self.tab_widget.setCurrentIndex(2)  # Switch to "Выбор камеры" tab (index 2)
+        self.camera_combo.setCurrentText(camera_name)
+        self.load_camera_video(camera_name)
+
+    def open_chat_window(self):
+        self.chat_window = TrafficSignChatbot()
+        self.chat_window.show()
+
+    def is_in_speed_zone(self, cx, cy, zone):
+        return zone['x1'] <= cx <= zone['x2'] and zone['y1'] <= cy <= zone['y2']
+
+    def get_color(self, track_id):
+        hue = (track_id * 15) % 180
+        color = cv2.cvtColor(np.uint8([[[hue, 255, 255]]]), cv2.COLOR_HSV2BGR)[0][0]
+        return (int(color[0]), int(color[1]), int(color[2]))
+
+    def put_text_with_background(self, frame, text, position, font_scale, color, thickness):
+        (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+        bg_x1, bg_y1 = position[0], position[1] - text_height - 5
+        bg_x2, bg_y2 = position[0] + text_width + 5, position[1] + 5
+        cv2.rectangle(frame, (bg_x1, bg_y1), (bg_x2, bg_y2), (255, 255, 255), -1)
+        cv2.putText(frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
     def toggle_speed_limit_input(self):
         self.use_google_speed = self.use_google_speed_limit.isChecked()
         self.speed_limit_input.setEnabled(not self.use_google_speed)
         if self.use_google_speed:
-            self.speed_limit_input.setText("Используется ограничение скорости Google Maps")
+            self.speed_limit_input.setText("Используется лимит скорости Google Maps")
             self.fetch_google_speed_limit()
         else:
             self.speed_limit_input.setText(str(self.speed_limit))
@@ -445,7 +615,7 @@ class VideoApp(QMainWindow):
                     self.google_speed_limit = float(speed_limit) if speed_limit.isdigit() else 50
                     print(f"Ограничение скорости OSM: {self.google_speed_limit} км/ч")
                 else:
-                    print("Ограничение скорости не найдено: Ответ не содержит данных.")
+                    print("Ограничение скорости не найдено.")
                     self.google_speed_limit = 50
             else:
                 print(f"Ошибка API OSM: HTTP {response.status_code}")
@@ -464,11 +634,11 @@ class VideoApp(QMainWindow):
                     return
                 self.speed_limit = new_speed_limit
                 self.update_status()
-                QMessageBox.information(self, "Успешно", f"Ограничение скорости установлено на {self.speed_limit} км/ч.")
+                QMessageBox.information(self, "Успех", f"Ограничение скорости установлено на {self.speed_limit} км/ч.")
             except ValueError:
                 QMessageBox.warning(self, "Ошибка", "Пожалуйста, введите корректное число!")
         else:
-            QMessageBox.information(self, "Информация", "Используется ограничение скорости Google Maps. Ручной ввод отключен.")
+            QMessageBox.information(self, "Информация", "Используется лимит скорости Google Maps.")
 
     def on_tab_changed(self, index):
         if self.tab_widget.tabText(index) == "Выбор камеры":
@@ -516,199 +686,167 @@ class VideoApp(QMainWindow):
 
             self.frame_id += 1
             original_h, original_w = frame.shape[:2]
-
-            self.camera_video_label.setFixedSize(self.video_container.size())
-            self.camera_video_label.setScaledContents(True)
-
             annotated_frame = frame.copy()
 
-            if self.camera_combo.currentText() == "Камера 2" and "speed_zone" not in self.__dict__:
-                self.speed_zone = None
-            if self.speed_zone is None:
-                display_width, display_height = original_w, original_h
-                self.speed_zone = {
-                    'x1': int(display_width * 0.2),
-                    'y1': int(display_height * 0.4),
-                    'x2': int(display_width * 0.8),
-                    'y2': int(display_height * 0.7)
-                }
-                zone_pixel_length = self.speed_zone['y2'] - self.speed_zone['y1']
-                self.real_distance_meters = 10.0
-                self.meters_per_pixel = self.real_distance_meters / zone_pixel_length
-                print(f"Зона измерения скорости определена: {self.speed_zone}, метров на пиксель: {self.meters_per_pixel}")
+            if self.camera_combo.currentText() == "Камера 2":
+                if self.speed_zone is None:
+                    display_width, display_height = original_w, original_h
+                    self.speed_zone = {
+                        'x1': int(display_width * 0.2),
+                        'y1': int(display_height * 0.4),
+                        'x2': int(display_width * 0.8),
+                        'y2': int(display_height * 0.7)
+                    }
+                    zone_pixel_length = self.speed_zone['y2'] - self.speed_zone['y1']
+                    self.meters_per_pixel = self.real_distance_meters / zone_pixel_length
 
-            overlay = annotated_frame.copy()
-            cv2.rectangle(overlay, (self.speed_zone['x1'], self.speed_zone['y1']),
-                          (self.speed_zone['x2'], self.speed_zone['y2']),
-                          (0, 255, 255), -1)
-            alpha = 0.1
-            cv2.addWeighted(overlay, alpha, annotated_frame, 1 - alpha, 0, annotated_frame)
+                overlay = annotated_frame.copy()
+                cv2.rectangle(overlay, (self.speed_zone['x1'], self.speed_zone['y1']),
+                            (self.speed_zone['x2'], self.speed_zone['y2']),
+                            (0, 255, 255), -1)
+                alpha = 0.1
+                cv2.addWeighted(overlay, alpha, annotated_frame, 1 - alpha, 0, annotated_frame)
+                cv2.rectangle(annotated_frame, (self.speed_zone['x1'], self.speed_zone['y1']),
+                            (self.speed_zone['x2'], self.speed_zone['y2']),
+                            (0, 255, 255), 1)
 
-            cv2.rectangle(annotated_frame, (self.speed_zone['x1'], self.speed_zone['y1']),
-                          (self.speed_zone['x2'], self.speed_zone['y2']),
-                          (0, 255, 255), 1)
+                results_signs = self.model_signs.predict(
+                    source=frame,
+                    conf=0.5,
+                    imgsz=max(original_w, original_h),
+                    show=False,
+                    verbose=False,
+                    device=self.device
+                )
+                boxes_signs = results_signs[0].boxes
+                labels_on_frame = set()
 
-            results_signs = self.model_signs.predict(
-                source=frame,
-                conf=0.5,
-                imgsz=max(original_w, original_h),
-                show=False,
-                verbose=False,
-                device=self.device
-            )
-            boxes_signs = results_signs[0].boxes
-            labels_on_frame = set()
-
-            for box in boxes_signs:
-                cls_id = int(box.cls[0])
-                label = self.model_signs.names[cls_id]
-                cleaned_label = self.clean_label(label)
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-
-                color = tuple(int(x) for x in np.random.default_rng(abs(hash(cleaned_label)) % (2**32)).integers(0, 255, size=3))
-
-                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-
-                text = f"{cleaned_label}"
-                (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                cv2.rectangle(annotated_frame, (x1, y1 - 25), (x1 + tw + 6, y1), color, -1)
-                cv2.putText(annotated_frame, text, (x1 + 2, y1 - 7),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-
-                labels_on_frame.add(cleaned_label)
-
-                if cleaned_label not in self.spoken_labels:
-                    self.spoken_labels.add(cleaned_label)
-                    self.speak_label(cleaned_label)
-
-            y_offset = 40
-            for label in sorted(labels_on_frame):
-                color = tuple(int(x) for x in np.random.default_rng(abs(hash(label)) % (2**32)).integers(0, 255, size=3))
-                cv2.putText(annotated_frame, label,
-                           (15, y_offset),
-                           cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 3)
-                y_offset += 40
-
-            results_vehicles = self.model_vehicles.predict(
-                source=frame,
-                conf=0.25,
-                imgsz=max(original_w, original_h),
-                show=False,
-                verbose=False,
-                device=self.device
-            )
-            detections = []
-
-            for r in results_vehicles:
-                for box in r.boxes:
+                for box in boxes_signs:
+                    cls_id = int(box.cls[0])
+                    label = self.model_signs.names[cls_id]
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    cls = int(box.cls[0])
-                    if cls in [2, 3, 5, 7]:
-                        detections.append([x1, y1, x2, y2])
+                    color = tuple(int(x) for x in np.random.default_rng(abs(hash(label)) % (2**32)).integers(0, 255, size=3))
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+                    text = f"{label}"
+                    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                    cv2.rectangle(annotated_frame, (x1, y1 - 25), (x1 + tw + 6, y1), color, -1)
+                    cv2.putText(annotated_frame, text, (x1 + 2, y1 - 7),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                    labels_on_frame.add(label)
+                    if label not in self.spoken_labels:
+                        self.spoken_labels.add(label)
+                        threading.Thread(target=self.speak_label, args=(label,), daemon=True).start()
 
-            detections = np.array(detections)
-            if len(detections) > 0:
-                tracked_objects = self.tracker.update(detections)
-                print(f"Обнаружено транспортных средств: {len(tracked_objects)}")
+                y_offset = 40
+                for label in sorted(labels_on_frame):
+                    color = tuple(int(x) for x in np.random.default_rng(abs(hash(label)) % (2**32)).integers(0, 255, size=3))
+                    cv2.putText(annotated_frame, label,
+                                (15, y_offset),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 3)
+                    y_offset += 40
+
+                results_vehicles = self.model_vehicles.predict(
+                    source=frame,
+                    conf=0.25,
+                    imgsz=max(original_w, original_h),
+                    show=False,
+                    verbose=False,
+                    device=self.device
+                )
+                detections = []
+                for r in results_vehicles:
+                    for box in r.boxes:
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        cls = int(box.cls[0])
+                        if cls in [2, 3, 5, 7]:
+                            detections.append([x1, y1, x2, y2])
+
+                detections = np.array(detections)
+                if len(detections) > 0:
+                    tracked_objects = self.tracker.update(detections)
+                else:
+                    tracked_objects = []
+
+                for obj in tracked_objects:
+                    x1, y1, x2, y2, track_id = obj
+                    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                    track_id = int(track_id)
+
+                    cx = (x1 + x2) // 2
+                    cy = (y1 + y2) // 2
+
+                    if track_id not in self.trajectories:
+                        self.trajectories[track_id] = deque(maxlen=20)
+                    self.trajectories[track_id].append((cx, cy))
+
+                    in_zone = self.is_in_speed_zone(cx, cy, self.speed_zone)
+                    if in_zone and track_id in self.positions:
+                        prev_cx, prev_cy, prev_frame = self.positions[track_id]
+                        distance_pixels = abs(cy - prev_cy)
+                        if distance_pixels < 5:
+                            distance_pixels = 0
+                        elif distance_pixels > self.max_pixel_displacement:
+                            distance_pixels = 0
+
+                        distance_meters = distance_pixels * self.meters_per_pixel
+                        time_seconds = (self.frame_id - prev_frame) / max(1, self.fps)
+                        if time_seconds > 0:
+                            speed_ms = distance_meters / time_seconds
+                            speed_kmh = speed_ms * 3.6
+                            if speed_kmh > self.max_speed_limit:
+                                speed_kmh = self.max_speed_limit
+
+                            if track_id not in self.speed_history:
+                                self.speed_history[track_id] = deque(maxlen=self.max_speed_history)
+                            if speed_kmh > 0:
+                                self.speed_history[track_id].append(speed_kmh)
+
+                    self.positions[track_id] = (cx, cy, self.frame_id)
+
+                    color = self.get_color(track_id)
+                    for i in range(1, len(self.trajectories[track_id])):
+                        cv2.line(annotated_frame, self.trajectories[track_id][i-1],
+                                self.trajectories[track_id][i], color, 2)
+
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 1)
+                    cv2.putText(annotated_frame, f'ID:{track_id}', (x1, y2 + 20),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+                    if in_zone and track_id in self.speed_history and len(self.speed_history[track_id]) > 0:
+                        avg_speed = int(sum(self.speed_history[track_id]) / len(self.speed_history[track_id]))
+                        if avg_speed >= self.min_display_speed:
+                            self.put_text_with_background(annotated_frame, f"{avg_speed}km/h",
+                                                        (x1, y1 - 10), 0.7, color, 2)
+                            speed_violation, timestamp = self.detect_speed_violation(track_id, avg_speed)
+                            if speed_violation:
+                                vehicle_img = frame[y1:y2, x1:x2]
+                                vehicle_filename = f"Speed_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
+                                vehicle_path = os.path.join(self.output_dir, vehicle_filename)
+                                if vehicle_img.size > 0:
+                                    cv2.imwrite(vehicle_path, vehicle_img)
+                                plate_y1 = y2 - int((y2 - y1) * 0.3)
+                                plate_img = frame[plate_y1:y2, x1:x2]
+                                plate_filename = f"Speed_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_plate.jpg"
+                                plate_path = os.path.join(self.output_dir, plate_filename)
+                                if plate_img.size > 0:
+                                    cv2.imwrite(plate_path, plate_img)
+                                self.add_violation_card(track_id, timestamp, "Нарушение скорости", vehicle_path, plate_path)
+                                self.speak_label("Нарушение скорости!")
+
+                rgb_image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb_image.shape
+                bytes_per_line = ch * w
+                qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(qt_image)
+                self.camera_video_label.setPixmap(pixmap)
+
             else:
-                tracked_objects = []
-                print("Транспортные средства не обнаружены.")
-
-            for obj in tracked_objects:
-                x1, y1, x2, y2, track_id = obj
-                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-                track_id = int(track_id)
-
-                cx = (x1 + x2) // 2
-                cy = (y1 + y2) // 2
-
-                if track_id not in self.trajectories:
-                    self.trajectories[track_id] = deque(maxlen=30)
-                self.trajectories[track_id].append((cx, cy))
-
-                in_zone = cv2.pointPolygonTest(np.array([(self.speed_zone['x1'], self.speed_zone['y1']),
-                                                         (self.speed_zone['x1'], self.speed_zone['y2']),
-                                                         (self.speed_zone['x2'], self.speed_zone['y2']),
-                                                         (self.speed_zone['x2'], self.speed_zone['y1'])], np.int32),
-                                               (cx, cy), False) >= 0
-                print(f"Автомобиль ID {track_id} в зоне измерения скорости? {in_zone}, Координаты: ({cx}, {cy})")
-
-                if in_zone and track_id in self.positions:
-                    prev_cx, prev_cy, prev_frame = self.positions[track_id]
-                    distance_pixels = abs(cy - prev_cy)
-                    print(f"Для автомобиля ID {track_id} distance_pixels: {distance_pixels}")
-
-                    if distance_pixels < 2:
-                        distance_pixels = 0
-                        print(f"Автомобиль ID {track_id}: distance_pixels слишком мал, обнулен.")
-                    elif distance_pixels > self.max_pixel_displacement:
-                        distance_pixels = 0
-                        print(f"Автомобиль ID {track_id}: distance_pixels слишком велик, обнулен.")
-
-                    distance_meters = distance_pixels * self.meters_per_pixel
-                    time_seconds = (self.frame_id - prev_frame) / max(1, self.fps)
-                    print(f"Автомобиль ID {track_id}: distance_meters: {distance_meters}, time_seconds: {time_seconds}")
-
-                    if time_seconds > 0 and distance_meters > 0:
-                        speed_ms = distance_meters / time_seconds
-                        speed_kmh = speed_ms * 3.6
-                        if speed_kmh > self.max_speed_limit:
-                            speed_kmh = self.max_speed_limit
-                        print(f"Автомобиль ID {track_id}: Скорость рассчитана: {speed_kmh} км/ч")
-
-                        if track_id not in self.speed_history:
-                            self.speed_history[track_id] = deque(maxlen=self.max_speed_history)
-                        if speed_kmh > 0:
-                            self.speed_history[track_id].append(speed_kmh)
-
-                        speed_violation, timestamp = self.detect_speed_violation(track_id, speed_kmh)
-                        if speed_violation:
-                            vehicle_img = frame[y1:y2, x1:x2]
-                            vehicle_filename = f"Speed_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
-                            vehicle_path = os.path.join(self.output_dir, vehicle_filename)
-                            if vehicle_img.size > 0:
-                                cv2.imwrite(vehicle_path, vehicle_img)
-                            plate_y1 = y2 - int((y2 - y1) * 0.3)
-                            plate_img = frame[plate_y1:y2, x1:x2]
-                            plate_filename = f"Speed_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_plate.jpg"
-                            plate_path = os.path.join(self.output_dir, plate_filename)
-                            if plate_img.size > 0:
-                                cv2.imwrite(plate_path, plate_img)
-                            self.add_violation_card(track_id, timestamp, "Нарушение скоростного режима", vehicle_path, plate_path)
-
-                    else:
-                        print(f"Автомобиль ID {track_id}: Скорость не рассчитана (time_seconds: {time_seconds}, distance_meters: {distance_meters})")
-
-                self.positions[track_id] = (cx, cy, self.frame_id)
-
-                hue = (track_id * 15) % 180
-                color = cv2.cvtColor(np.uint8([[[hue, 255, 255]]]), cv2.COLOR_HSV2BGR)[0][0]
-                color = (int(color[0]), int(color[1]), int(color[2]))
-
-                for i in range(1, len(self.trajectories[track_id])):
-                    cv2.line(annotated_frame, self.trajectories[track_id][i-1],
-                             self.trajectories[track_id][i], color, 2)
-
-                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 1)
-                cv2.putText(annotated_frame, f'ID:{track_id}', (x1, y2 + 20),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-
-                if in_zone and track_id in self.speed_history and len(self.speed_history[track_id]) > 0:
-                    avg_speed = int(sum(self.speed_history[track_id]) / len(self.speed_history[track_id]))
-                    print(f"Автомобиль ID {track_id}: Средняя скорость: {avg_speed} км/ч")
-                    if avg_speed >= self.min_display_speed:
-                        (text_width, text_height), _ = cv2.getTextSize(f"{avg_speed}km/h", cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-                        bg_x1, bg_y1 = x1, y1 - text_height - 5
-                        bg_x2, bg_y2 = x1 + text_width + 5, y1 + 5
-                        cv2.rectangle(annotated_frame, (bg_x1, bg_y1), (bg_x2, bg_y2), (255, 255, 255), -1)
-                        cv2.putText(annotated_frame, f"{avg_speed}km/h", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-
-            rgb_image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-            h, w, ch = rgb_image.shape
-            bytes_per_line = ch * w
-            qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qt_image)
-            self.camera_video_label.setPixmap(pixmap)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                h, w, ch = frame_rgb.shape
+                bytes_per_line = ch * w
+                image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(image)
+                self.camera_video_label.setPixmap(pixmap.scaled(self.camera_video_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
             current_time = datetime.now()
             elapsed = (current_time - self.last_fps_time).total_seconds()
@@ -734,35 +872,8 @@ class VideoApp(QMainWindow):
 
             pedestrian_area = self.video1_pedestrian_area
             cv2.polylines(annotated_frame, [np.array(pedestrian_area, np.int32)], True, (255, 0, 255), 3)
-            cv2.putText(annotated_frame, "pedestrian crossing", (pedestrian_area[0][0], pedestrian_area[0][1] - 10),
+            cv2.putText(annotated_frame, "Pedestrian Crossing", (pedestrian_area[0][0], pedestrian_area[0][1] - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
-
-            # Video1 için trafik ışıkları (2 tane dörtgen, RED etiketiyle)
-            traffic_light_1 = (190, 40, 40, 40)  # İlk trafik ışığı koordinatları (x, y, w, h)
-            traffic_light_2 = (680, 135, 40, 40)  # İkinci trafik ışığı koordinatları (x, y, w, h)
-            
-            cv2.rectangle(annotated_frame, (traffic_light_1[0], traffic_light_1[1]), 
-                          (traffic_light_1[0] + traffic_light_1[2], traffic_light_1[1] + traffic_light_1[3]), 
-                          (0, 0, 255), 2)
-            cv2.putText(annotated_frame, "RED", (traffic_light_1[0], traffic_light_1[1] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            cv2.rectangle(annotated_frame, (traffic_light_2[0], traffic_light_2[1]), 
-                          (traffic_light_2[0] + traffic_light_2[2], traffic_light_2[1] + traffic_light_2[3]), 
-                          (0, 0, 255), 2)
-            cv2.putText(annotated_frame, "RED", (traffic_light_2[0], traffic_light_2[1] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            
-            start_point = (100, 430)
-            end_point = (450, 500)
-            cv2.line(annotated_frame, start_point, end_point, (0, 0, 255), 2)  # Kırmızı çizgi
-
-            # Yazı ekliyoruz (çizginin üstüne biraz yukarıda)
-            text_position = (start_point[0], start_point[1] - 10)  # Yani (50, 190)
-            cv2.putText(annotated_frame, "Traffic light", text_position,
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-
-
-
 
             results_vehicles = self.model_vehicles.predict(
                 source=frame,
@@ -784,6 +895,34 @@ class VideoApp(QMainWindow):
                         cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                         cv2.putText(annotated_frame, "Car", (x1, y1 - 10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+            traffic_light_1 = (190, 40, 230, 80)
+            cv2.rectangle(annotated_frame, (traffic_light_1[0], traffic_light_1[1]), 
+                          (traffic_light_1[2], traffic_light_1[3]), (0, 0, 255), 2)
+            cv2.putText(annotated_frame, "RED", (traffic_light_1[0], traffic_light_1[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            
+            traffic_light_2 = (680, 135, 720, 175)
+            cv2.rectangle(annotated_frame, (traffic_light_2[0], traffic_light_2[1]), 
+                          (traffic_light_2[2], traffic_light_2[3]), (0, 0, 255), 2)
+            cv2.putText(annotated_frame, "RED", (traffic_light_2[0], traffic_light_2[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+            detected_label = "RED"
+            self.traffic_light_indicator.setText(f"Светофор: {detected_label}")
+            self.traffic_light_indicator.setStyleSheet("""
+                background-color: rgba(255, 85, 85, 0.9);
+                color: #FFFFFF;
+                font-size: 14px;
+                padding: 10px;
+                border-radius: 12px;
+                border: 1px solid #6366F1;
+            """)
+
+            traffic_line = self.video1_traffic_line
+            cv2.line(annotated_frame, traffic_line[0], traffic_line[1], (0, 0, 255), 3)
+            cv2.putText(annotated_frame, "Red Light Line", (traffic_line[0][0], traffic_line[0][1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
             rgb_image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_image.shape
@@ -819,7 +958,7 @@ class VideoApp(QMainWindow):
             print(f"FPS камеры: {self.fps}")
             self.timer.start(20)
         else:
-            print("Не удалось открыть камеру компьютера!")
+            print("Камера компьютера не открыта!")
 
     def start_phone_camera(self):
         self.traffic_light_mode = False
@@ -834,7 +973,7 @@ class VideoApp(QMainWindow):
             print(f"FPS камеры телефона: {self.fps}")
             self.timer.start(20)
         else:
-            print("Не удалось открыть камеру телефона! Проверьте настройки DroidCam/IP Webcam.")
+            print("Камера телефона не открыта!")
 
     def open_video(self):
         self.traffic_light_mode = False
@@ -850,7 +989,7 @@ class VideoApp(QMainWindow):
                 print(f"FPS видео: {self.fps}")
                 self.timer.start(25)
             else:
-                print("Не удалось открыть видео!")
+                print("Видео не открыто!")
 
     def toggle_traffic_light_mode(self):
         if self.cap and self.cap.isOpened():
@@ -859,9 +998,11 @@ class VideoApp(QMainWindow):
                 self.btn_traffic_light.setText("Перейти в стандартный режим")
             else:
                 self.btn_traffic_light.setText("Управление светофором")
+                self.positions.clear()
+                self.speed_history.clear()
             self.update_status()
         else:
-            print("Сначала запустите видео или камеру!")
+            print("Сначала включите видео или камеру!")
 
     def stop_video(self):
         if self.cap:
@@ -876,7 +1017,6 @@ class VideoApp(QMainWindow):
         self.violated_ids.clear()
         self.lane_violated_ids.clear()
         self.pedestrian_violated_ids.clear()
-        self.red_light_violated_ids.clear()
         self.pedestrian_stop_counters.clear()
         self.previous_lanes.clear()
         self.lane_change_counters.clear()
@@ -904,7 +1044,7 @@ class VideoApp(QMainWindow):
                 self.engine.runAndWait()
                 self.speech_queue.task_done()
             except Exception as e:
-                print(f"Ошибка озвучивания: {e}")
+                print(f"Ошибка озвучки: {e}")
 
     def init_db(self):
         self.conn = sqlite3.connect("violations.db")
@@ -954,43 +1094,8 @@ class VideoApp(QMainWindow):
             if track_id not in self.violated_ids:
                 self.violated_ids.append(track_id)
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                print(f"Нарушение скоростного режима: Автомобиль ID {track_id}, Скорость: {speed_kmh} км/ч, Ограничение: {current_speed_limit} км/ч")
+                print(f"Нарушение скорости: ID транспорта {track_id}, Скорость: {speed_kmh} км/ч, Лимит: {current_speed_limit} км/ч")
                 return True, timestamp
-        return False, None
-
-    def detect_red_light_violation(self, track_id, cx, cy, frame, x1, y1, x2, y2, detected_label):
-        if detected_label != "RED":
-            return False, None
-
-        line_start, line_end = self.traffic_line
-        x1_line, y1_line = line_start
-        x2_line, y2_line = line_end
-
-        if x2_line - x1_line != 0:
-            m = (y2_line - y1_line) / (x2_line - x1_line)
-            c = y1_line - m * x1_line
-            line_y_at_cx = m * cx + c
-            if cy > line_y_at_cx:
-                if track_id not in self.red_light_violated_ids:
-                    self.red_light_violated_ids.append(track_id)
-                    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    print(f"Нарушение на красный свет: Автомобиль ID {track_id}")
-
-                    vehicle_img = frame[y1:y2, x1:x2]
-                    vehicle_filename = f"RedLight_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
-                    vehicle_path = os.path.join(self.output_dir, vehicle_filename)
-                    if vehicle_img.size > 0:
-                        cv2.imwrite(vehicle_path, vehicle_img)
-
-                    plate_y1 = y2 - int((y2 - y1) * 0.3)
-                    plate_img = frame[plate_y1:y2, x1:x2]
-                    plate_filename = f"RedLight_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_plate.jpg"
-                    plate_path = os.path.join(self.output_dir, plate_filename)
-                    if plate_img.size > 0:
-                        cv2.imwrite(plate_path, plate_img)
-
-                    self.add_violation_card(track_id, timestamp, "Нарушение на красный свет", vehicle_path, plate_path)
-                    return True, timestamp
         return False, None
 
     def detect_lanes(self, frame):
@@ -1015,7 +1120,7 @@ class VideoApp(QMainWindow):
         lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=40, minLineLength=40, maxLineGap=20)
         lane_lines = []
         if lines is not None:
-            print(f"Обнаружены линии полос: найдено {len(lines)} линий")
+            print(f"Обнаружено линий разметки: {len(lines)} линий")
             for line in lines:
                 x1, y1, x2, y2 = line[0]
                 slope = abs((y2 - y1) / (x2 - x1 + 1e-5))
@@ -1026,7 +1131,7 @@ class VideoApp(QMainWindow):
                 lane_lines.append((x1, y1_adjusted, x2, y2_adjusted))
                 cv2.line(frame, (x1, y1_adjusted), (x2, y2_adjusted), (255, 255, 0), 4)
         else:
-            print("Линии полос не обнаружены!")
+            print("Линии разметки не обнаружены!")
         return frame, lane_lines
 
     def detect_lane_violation(self, track_id, x1, x2, lane_lines):
@@ -1075,7 +1180,7 @@ class VideoApp(QMainWindow):
                     if track_id not in self.lane_violated_ids:
                         self.lane_violated_ids.append(track_id)
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        print(f"Нарушение полосы: Автомобиль ID {track_id}, Полоса: {prev_lane} -> {current_lane}")
+                        print(f"Нарушение полосы: ID транспорта {track_id}, Полоса: {prev_lane} -> {current_lane}")
                         return True, timestamp
             else:
                 self.lane_change_counters[track_id] = 0
@@ -1107,16 +1212,16 @@ class VideoApp(QMainWindow):
         lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=50, minLineLength=50, maxLineGap=10)
         pedestrian_lines = []
         if lines is not None:
-            print(f"Линии Hough для пешеходного перехода: найдено {len(lines)} линий")
+            print(f"Линии для пешеходного перехода Hough: {len(lines)} линий найдено")
             for line in lines:
                 x1, y1, x2, y2 = line[0]
                 slope = abs((y2 - y1) / (x2 - x1 + 1e-5))
                 if slope < 0.3:
                     y_avg = (y1 + y2) // 2
                     pedestrian_lines.append((x1, y_avg, x2, y_avg))
-                    print(f"Горизонтальная линия: x1={x1}, y1={y1}, x2={x2}, y2={y2}, наклон={slope}")
+                    print(f"Горизонтальная линия: x1={x1}, y1={y1}, x2={x2}, y2={y2}, slope={slope}")
         if len(pedestrian_lines) < 2:
-            print("Линии пешеходного перехода не найдены: недостаточно линий обнаружено")
+            print("Линии пешеходного перехода не найдены: недостаточно линий")
             return None
         pedestrian_lines = sorted(pedestrian_lines, key=lambda x: x[1])
         valid_lines = []
@@ -1129,7 +1234,7 @@ class VideoApp(QMainWindow):
                     valid_lines.append(line1)
                 valid_lines.append(line2)
         if len(valid_lines) < 2:
-            print("Линии пешеходного перехода не найдены: нет линий с регулярным интервалом")
+            print("Линии пешеходного перехода не найдены: отсутствуют линии с правильным интервалом")
             return None
         min_y = min([line[1] for line in valid_lines]) + h//3
         max_y = max([line[1] for line in valid_lines]) + h//3
@@ -1141,7 +1246,7 @@ class VideoApp(QMainWindow):
             (max_x, max_y),
             (max_x, min_y)
         ]
-        print(f"Создана зона пешеходного перехода: {pedestrian_area}")
+        print(f"Область пешеходного перехода создана: {pedestrian_area}")
         return pedestrian_area
 
     def detect_pedestrian_crosswalk_local(self, frame):
@@ -1159,7 +1264,7 @@ class VideoApp(QMainWindow):
                 if r.names[int(box.cls)] == "crosswalk":
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     pedestrian_area = [(x1, y1), (x1, y2), (x2, y2), (x2, y1)]
-                    print(f"Пешеходный переход обнаружен (локальная модель): {pedestrian_area}")
+                    print(f"Обнаружен пешеходный переход (локальная модель): {pedestrian_area}")
                     break
         return pedestrian_area
 
@@ -1207,13 +1312,13 @@ class VideoApp(QMainWindow):
             if speed_kmh <= 2:
                 self.pedestrian_stop_counters[track_id] += 1
                 if self.pedestrian_stop_counters[track_id] >= 10:
-                    print(f"Автомобиль ID {track_id} остановился на пешеходном переходе, нарушения нет.")
+                    print(f"Транспорт ID {track_id} остановился на пешеходном переходе, нарушение отсутствует.")
                     return False, None
             else:
                 if track_id not in self.pedestrian_violated_ids:
                     self.pedestrian_violated_ids.append(track_id)
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    print(f"Нарушение на пешеходном переходе (Скорость): Автомобиль ID {track_id}, Скорость: {speed_kmh} км/ч")
+                    print(f"Нарушение пешеходного перехода (скорость): ID транспорта {track_id}, Скорость: {speed_kmh} км/ч")
                     return True, timestamp
         else:
             self.pedestrian_stop_counters.pop(track_id, None)
@@ -1234,7 +1339,7 @@ class VideoApp(QMainWindow):
 
         if not is_inside and was_inside:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            print(f"Нарушение на пешеходном переходе (Проезд): Автомобиль ID {track_id} полностью проехал пешеходный переход!")
+            print(f"Нарушение пешеходного перехода (проезд): Транспорт ID {track_id} полностью проехал пешеходный переход!")
             vehicle_filename = f"CrosswalkPass_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
             vehicle_path = os.path.join(self.output_dir, vehicle_filename)
             if vehicle_img.size > 0:
@@ -1245,7 +1350,7 @@ class VideoApp(QMainWindow):
             plate_path = os.path.join(self.output_dir, plate_filename)
             if plate_img.size > 0:
                 cv2.imwrite(plate_path, plate_img)
-            self.add_violation_card(track_id, timestamp, "Нарушение на пешеходном переходе (Проезд)", vehicle_path, plate_path)
+            self.add_violation_card(track_id, timestamp, "Нарушение пешеходного перехода (проезд)", vehicle_path, plate_path)
             return True, timestamp
 
         return False, None
@@ -1267,7 +1372,7 @@ class VideoApp(QMainWindow):
         plate_text = self.read_plate(plate_path)
         info_widget = QWidget()
         info_layout = QVBoxLayout()
-        info_label = QLabel(f"ID: {track_id}\nВремя: {timestamp}\nНарушение: {violation_type}\nНомер: {plate_text or 'неизвестно'}")
+        info_label = QLabel(f"ID: {track_id}\nВремя: {timestamp}\nНарушение: {violation_type}\nНомер: {plate_text or 'Неизвестно'}")
         info_label.setObjectName("violationLabel")
         info_layout.addWidget(info_label)
         info_widget.setLayout(info_layout)
@@ -1312,12 +1417,12 @@ class VideoApp(QMainWindow):
             if self.frame_id % self.pedestrian_check_interval == 0:
                 self.pedestrian_area = self.detect_pedestrian_crosswalk_local(frame.copy())
                 if self.pedestrian_area:
-                    print("Пешеходный переход обнаружен (локальная модель)!")
+                    print("Обнаружен пешеходный переход (локальная модель)!")
                 else:
-                    print("Пешеходный переход не найден (локальная модель). Пробуем метод обработки изображения...")
+                    print("Пешеходный переход не найден (локальная модель). Попытка с помощью обработки изображения...")
                     self.pedestrian_area = self.detect_pedestrian_crosswalk(frame.copy())
                     if self.pedestrian_area:
-                        print("Пешеходный переход обнаружен (обработка изображения)!")
+                        print("Обнаружен пешеходный переход (обработка изображения)!")
                     else:
                         print("Пешеходный переход не найден (обработка изображения).")
 
@@ -1410,26 +1515,25 @@ class VideoApp(QMainWindow):
                     pass_violation, pass_timestamp = self.detect_crosswalk_pass_violation(
                         track_id, x1, y1, x2, y2, self.pedestrian_area, has_pedestrian, frame, vehicle_img
                     )
+                    if pass_violation and track_id not in self.pedestrian_violated_ids:
+                        self.pedestrian_violated_ids.append(track_id)
 
-                    if pass_violation:
-                        pass
-
-                    if track_id not in self.trajectories:
-                        self.trajectories[track_id] = deque(maxlen=30)
-                    self.trajectories[track_id].append((cx, cy))
-
-                    in_zone = (self.area[0][0] <= cx <= self.area[2][0] and self.area[0][1] <= cy <= self.area[2][1])
-
-                    if in_zone and track_id in self.positions:
+                    if track_id in self.positions:
                         prev_cx, prev_cy, prev_frame = self.positions[track_id]
                         distance_pixels = math.sqrt((cx - prev_cx) ** 2 + (cy - prev_cy) ** 2)
-
-                        if distance_pixels > self.max_pixel_displacement:
+                        if distance_pixels < 5:
+                            distance_pixels = 0
+                        elif distance_pixels > self.max_pixel_displacement:
                             distance_pixels = 0
 
-                        distance_meters = distance_pixels * self.meters_per_pixel_base
-                        time_seconds = (self.frame_id - prev_frame) / max(1, self.fps)
+                        if cy > self.horizon_y:
+                            perspective_scale = self.perspective_factor / (self.perspective_factor + (cy - self.horizon_y))
+                            adjusted_meters_per_pixel = self.meters_per_pixel_base / perspective_scale
+                        else:
+                            adjusted_meters_per_pixel = self.meters_per_pixel_base * 10
 
+                        distance_meters = distance_pixels * adjusted_meters_per_pixel
+                        time_seconds = (self.frame_id - prev_frame) / max(1, self.fps)
                         if time_seconds > 0:
                             speed_ms = distance_meters / time_seconds
                             speed_kmh = speed_ms * 3.6
@@ -1438,98 +1542,84 @@ class VideoApp(QMainWindow):
 
                             if track_id not in self.speed_history:
                                 self.speed_history[track_id] = deque(maxlen=self.max_speed_history)
-                            self.speed_history[track_id].append(speed_kmh)
+                            if speed_kmh > 0:
+                                self.speed_history[track_id].append(speed_kmh)
 
-                            speed_violation, timestamp = self.detect_speed_violation(track_id, speed_kmh)
-                            if speed_violation:
-                                vehicle_img = frame[y1:y2, x1:x2]
-                                vehicle_filename = f"Speed_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
-                                vehicle_path = os.path.join(self.output_dir, vehicle_filename)
-                                if vehicle_img.size > 0:
-                                    cv2.imwrite(vehicle_path, vehicle_img)
-                                plate_y1 = y2 - int((y2 - y1) * 0.3)
-                                plate_img = frame[plate_y1:y2, x1:x2]
-                                plate_filename = f"Speed_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_plate.jpg"
-                                plate_path = os.path.join(self.output_dir, plate_filename)
-                                if plate_img.size > 0:
-                                    cv2.imwrite(plate_path, plate_img)
-                                self.add_violation_card(track_id, timestamp, "Нарушение скоростного режима", vehicle_path, plate_path)
+                            if len(self.speed_history[track_id]) > 0:
+                                avg_speed = sum(self.speed_history[track_id]) / len(self.speed_history[track_id])
+                                avg_speed = max(0, min(self.max_speed_limit, avg_speed))
 
-                            pedestrian_violation, ped_timestamp = self.detect_pedestrian_violation(
-                                track_id, cx, cy, speed_kmh, self.pedestrian_area, has_pedestrian
-                            )
-                            if pedestrian_violation:
-                                vehicle_img = frame[y1:y2, x1:x2]
-                                vehicle_filename = f"Pedestrian_ID_{track_id}_{ped_timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
-                                vehicle_path = os.path.join(self.output_dir, vehicle_filename)
-                                if vehicle_img.size > 0:
-                                    cv2.imwrite(vehicle_path, vehicle_img)
-                                plate_y1 = y2 - int((y2 - y1) * 0.3)
-                                plate_img = frame[plate_y1:y2, x1:x2]
-                                plate_filename = f"Pedestrian_ID_{track_id}_{ped_timestamp.replace(' ', '_').replace(':', '-')}_plate.jpg"
-                                plate_path = os.path.join(self.output_dir, plate_filename)
-                                if plate_img.size > 0:
-                                    cv2.imwrite(plate_path, plate_img)
-                                self.add_violation_card(track_id, ped_timestamp, "Нарушение на пешеходном переходе", vehicle_path, plate_path)
+                                ped_violation, ped_timestamp = self.detect_pedestrian_violation(track_id, cx, cy, avg_speed, self.pedestrian_area, has_pedestrian)
+                                if ped_violation:
+                                    vehicle_img = frame[y1:y2, x1:x2]
+                                    vehicle_filename = f"Ped_ID_{track_id}_{ped_timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
+                                    vehicle_path = os.path.join(self.output_dir, vehicle_filename)
+                                    if vehicle_img.size > 0:
+                                        cv2.imwrite(vehicle_path, vehicle_img)
+                                    plate_y1 = y2 - int((y2 - y1) * 0.3)
+                                    plate_img = frame[plate_y1:y2, x1:x2]
+                                    plate_filename = f"Ped_ID_{track_id}_{ped_timestamp.replace(' ', '_').replace(':', '-')}_plate.jpg"
+                                    plate_path = os.path.join(self.output_dir, plate_filename)
+                                    if plate_img.size > 0:
+                                        cv2.imwrite(plate_path, plate_img)
+                                    self.add_violation_card(track_id, ped_timestamp, "Нарушение пешеходного перехода (скорость)", vehicle_path, plate_path)
+
+                                speed_violation, timestamp = self.detect_speed_violation(track_id, avg_speed)
+                                if speed_violation:
+                                    vehicle_img = frame[y1:y2, x1:x2]
+                                    vehicle_filename = f"Speed_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
+                                    vehicle_path = os.path.join(self.output_dir, vehicle_filename)
+                                    if vehicle_img.size > 0:
+                                        cv2.imwrite(vehicle_path, vehicle_img)
+                                    plate_y1 = y2 - int((y2 - y1) * 0.3)
+                                    plate_img = frame[plate_y1:y2, x1:x2]
+                                    plate_filename = f"Speed_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_plate.jpg"
+                                    plate_path = os.path.join(self.output_dir, plate_filename)
+                                    if plate_img.size > 0:
+                                        cv2.imwrite(plate_path, plate_img)
+                                    self.add_violation_card(track_id, timestamp, "Нарушение скорости", vehicle_path, plate_path)
 
                     self.positions[track_id] = (cx, cy, self.frame_id)
 
-                    hue = (track_id * 15) % 180
-                    color = cv2.cvtColor(np.uint8([[[hue, 255, 255]]]), cv2.COLOR_HSV2BGR)[0][0]
-                    color = (int(color[0]), int(color[1]), int(color[2]))
-
-                    for i in range(1, len(self.trajectories[track_id])):
-                        cv2.line(annotated_frame, self.trajectories[track_id][i-1],
-                                 self.trajectories[track_id][i], color, 2)
-
-                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-
-                    if in_zone and track_id in self.speed_history and len(self.speed_history[track_id]) > 0:
-                        avg_speed = sum(self.speed_history[track_id]) / len(self.speed_history[track_id])
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(annotated_frame, f'ID:{track_id}', (x1, y1 - 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255, 255), 2)
+                    if track_id in self.speed_history and len(self.speed_history[track_id]) > 0:
+                        avg_speed = int(sum(self.speed_history[track_id]) / len(self.speed_history[track_id]))
                         if avg_speed >= self.min_display_speed:
-                            cv2.putText(annotated_frame, f"{int(avg_speed)} km/h", (x1, y1 - 10),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-
-                    cv2.putText(annotated_frame, f"ID: {track_id}", (x1, y2 + 20),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                            (tw, th), _ = cv2.getTextSize(f"{avg_speed}km/h", cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                            cv2.rectangle(annotated_frame, (x1, y1 - 55), (x1 + tw + 6, y1 - 30), (255, 255, 255), -1)
+                            cv2.putText(annotated_frame, f"{avg_speed}km/h", (x1, y1 - 35),
+                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
             else:
-                # Обработка светофора
-                annotated_frame, detected_label = process_frame(frame.copy())
-                self.traffic_light_indicator.setText(f"Светофор: {detected_label if detected_label else 'Неизвестно'}")
+                annotated_frame, detected_label = process_frame(annotated_frame)
+                if detected_label:
+                    self.detected_labels.add(detected_label)
+                    self.traffic_light_indicator.setText(f"Светофор: {detected_label}")
+                    if detected_label == "GREEN":
+                        self.traffic_light_indicator.setStyleSheet("""
+                            background-color: rgba(74, 222, 128, 0.9);
+                            color: #FFFFFF;
+                            font-size: 14px;
+                            padding: 10px;
+                            border-radius: 12px;
+                            border: 1px solid #6366F1;
+                        """)
+                    else:
+                        self.traffic_light_indicator.setStyleSheet("""
+                            background-color: rgba(255, 85, 85, 0.9);
+                            color: #FFFFFF;
+                            font-size: 14px;
+                            padding: 10px;
+                            border-radius: 12px;
+                            border: 1px solid #6366F1;
+                        """)
 
-                if detected_label == "GREEN":
-                    self.traffic_light_indicator.setStyleSheet("""
-                        background-color: rgba(34, 197, 94, 0.9);
-                        color: #E5E7EB;
-                        font-size: 14px;
-                        padding: 10px;
-                        border-radius: 12px;
-                        border: 1px solid #22C55E;
-                    """)
-                elif detected_label == "RED":
-                    self.traffic_light_indicator.setStyleSheet("""
-                        background-color: rgba(239, 68, 68, 0.9);
-                        color: #E5E7EB;
-                        font-size: 14px;
-                        padding: 10px;
-                        border-radius: 12px;
-                        border: 1px solid #EF4444;
-                    """)
-                else:
-                    self.traffic_light_indicator.setStyleSheet("""
-                        background-color: rgba(63, 63, 90, 0.9);
-                        color: #E5E7EB;
-                        font-size: 14px;
-                        padding: 10px;
-                        border-radius: 12px;
-                        border: 1px solid #6366F1;
-                    """)
+                    if detected_label not in self.spoken_labels:
+                        self.spoken_labels.add(detected_label)
+                        self.speak_label(detected_label)
 
-                # Линия для нарушения красного света
-                cv2.line(annotated_frame, self.traffic_line[0], self.traffic_line[1], (0, 0, 255), 2)
-
-                # Обнаружение транспортных средств
                 results_vehicles = self.model_vehicles.predict(
                     source=frame,
                     conf=0.25,
@@ -1539,12 +1629,11 @@ class VideoApp(QMainWindow):
                     device=self.device
                 )
                 detections = []
-
                 for r in results_vehicles:
                     for box in r.boxes:
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
                         cls = int(box.cls[0])
-                        if cls in [2, 3, 5, 7]:  # Транспортные средства
+                        if cls in [2, 3, 5, 7]:
                             detections.append([x1, y1, x2, y2])
 
                 detections = np.array(detections)
@@ -1554,59 +1643,63 @@ class VideoApp(QMainWindow):
                     tracked_objects = []
 
                 for obj in tracked_objects:
-                    x1, y1, x2, y2, track_id = obj
-                    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-                    track_id = int(track_id)
-
+                    x1, y1, x2, y2, track_id = map(int, obj)
                     cx = (x1 + x2) // 2
                     cy = (y1 + y2) // 2
 
-                    # Проверка нарушения красного света
-                    red_light_violation, red_light_timestamp = self.detect_red_light_violation(
-                        track_id, cx, cy, frame, x1, y1, x2, y2, detected_label
-                    )
+                    result = cv2.pointPolygonTest(np.array(self.area, np.int32), (cx, cy), False)
+                    if result >= 0 and "RED" in self.detected_labels and track_id not in self.violated_ids:
+                        self.violated_ids.append(track_id)
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        vehicle_img = frame[y1:y2, x1:x2]
+                        vehicle_filename = f"RedLight_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_vehicle.jpg"
+                        vehicle_path = os.path.join(self.output_dir, vehicle_filename)
+                        if vehicle_img.size > 0:
+                            cv2.imwrite(vehicle_path, vehicle_img)
 
-                    # Отрисовка объекта
-                    hue = (track_id * 15) % 180
-                    color = cv2.cvtColor(np.uint8([[[hue, 255, 255]]]), cv2.COLOR_HSV2BGR)[0][0]
-                    color = (int(color[0]), int(color[1]), int(color[2]))
+                        plate_y1 = y2 - int((y2 - y1) * 0.3)
+                        plate_img = frame[plate_y1:y2, x1:x2]
+                        plate_filename = f"RedLight_ID_{track_id}_{timestamp.replace(' ', '_').replace(':', '-')}_plate.jpg"
+                        plate_path = os.path.join(self.output_dir, plate_filename)
+                        if plate_img.size > 0:
+                            cv2.imwrite(plate_path, plate_img)
 
-                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-                    cv2.putText(annotated_frame, f"ID: {track_id}", (x1, y2 + 20),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                        self.add_violation_card(track_id, timestamp, "Нарушение красного света", vehicle_path, plate_path)
+                        self.speak_label("Нарушение красного света!")
 
-            # Отрисовка зоны пешеходного перехода
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(annotated_frame, f'ID:{track_id}', (x1, y1 - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                cv2.line(annotated_frame, (290, 400), (800, 410), (0, 0, 255), 3)
+                
             if self.pedestrian_area:
                 cv2.polylines(annotated_frame, [np.array(self.pedestrian_area, np.int32)], True, (255, 0, 255), 3)
-                cv2.putText(annotated_frame, "pedestrian crossing", (self.pedestrian_area[0][0], self.pedestrian_area[0][1] - 10),
+                cv2.putText(annotated_frame, "Pedestrian Crossing", (self.pedestrian_area[0][0], self.pedestrian_area[0][1] - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
 
-            # Обновление отчета о нарушениях
-            self.update_report()
-
-            # Преобразование изображения для отображения
             rgb_image = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_image.shape
             bytes_per_line = ch * w
-            qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qt_image)
+            image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(image)
             self.image_label.setPixmap(pixmap)
 
-            # Обновление FPS
             current_time = datetime.now()
             elapsed = (current_time - self.last_fps_time).total_seconds()
             if elapsed > 1:
-                self.fps = self.frame_id / elapsed if elapsed > 0 else 30
+                self.fps = self.frame_id / elapsed if elapsed > 0 else self.fps
                 self.frame_id = 0
                 self.last_fps_time = current_time
                 self.update_status()
 
     def closeEvent(self, event):
         self.stop_video()
+        if self.camera_cap:
+            self.camera_cap.release()
         self.conn.close()
         event.accept()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = VideoApp()
     window.show()
